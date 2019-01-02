@@ -2,70 +2,62 @@ const express = require('express');
 const consola = require('consola');
 const { Nuxt, Builder } = require('nuxt');
 const { spawn } = require('child_process');
-const bodyParser = require('body-parser');
+const bodyParser = require('body-parser'); // 用于添加请求体到 request 参数中, req.body
 const crypto = require('crypto');
 const port = process.env.PORT || 3000;
 
-var appServer, // The app server
-  tmpServer, // The temporary server which will be used when the app is upgrading
-  upgrading; // Does the app is upgrading now
+var appServer, // 应用主服务
+  tmpServer, // 当应用更新时启动的临时服务，用于提示访问者系统正在升级中
+  upgrading; // 应用是否正在升级
 
 build();
 
 /**
- * Build the app with config
+ * 根据配置，构建项目
  */
 async function build() {
   const app = express();
 
-  // Parse application/x-www-form-urlencoded
+  // 解析 application/x-www-form-urlencoded
   app.use(bodyParser.urlencoded({ extended: false }));
-  // Parse application/json
+  // 解析 application/json
   app.use(bodyParser.json());
 
   app.set('port', port);
 
-  // Import and Set Nuxt.js options
+  // 导入并设置 Nuxt.js 参数
   let config = require('../nuxt.config.js');
   config.dev = !(process.env.NODE_ENV === 'production');
 
-  // Subscribe to the Webhooks's post request from GitHub.com in production mode
+  // 在生成环境中订阅来自 GitHub 的 Webhooks 请求（post 类型）
   config.dev ||
     app.post('/webhooks', function(req, res) {
-      // Use secret token to securing this API, Doc: https://developer.github.com/webhooks/securing/
+      // 使用 secret token 对该 API 的调用进行鉴权, 详细文档: https://developer.github.com/webhooks/securing/
       const SECRET_TOKEN = 'b65c19b95906e027c5d8';
-      // Compute the hash
+      // 计算签名
       const hash = `sha1=${crypto
         .createHmac('sha1', SECRET_TOKEN)
         .update(JSON.stringify(req.body))
         .digest('hex')}`;
-      // Validating payloads from GitHub
+      // 验证签名和 Webhooks 请求的请求头中的是否一致
       const isValid = hash === req.headers['x-hub-signature'];
-      // If the request is validated，send back successful status and restart the server.
+      // 如果验证通过，返回成功状态并重启服务
       if (isValid) {
         res.status(200).end();
         restart();
       } else {
-        // Send the forbidden message
+        // 鉴权失败，返回无权限提示
         res.status(403).send('Permission Denied');
       }
     });
-  // Expose a restart api for manually restart
-  config.dev ||
-    app.all('/restart', function(req, res) {
-      res
-        .status(200)
-        .send('pulling the latest code & restart the server, please wait...');
-      restart();
-    });
-  // Init Nuxt.js
+  // 初始化 Nuxt.js
   const nuxt = new Nuxt(config);
 
-  // Deleted "npm run build" script and build anyway，thanks to the "NODE_ENV" variable，the build behavior will still be different.
+  // 构建应用，得益于环境变量 NODE_ENV，在开发环境和生产环境下这个构建的表现会不同
   const builder = new Builder(nuxt);
   await builder.build();
 
-  // Give nuxt middleware to express
+  // 添加 nuxt 中间件到 express
   app.use(nuxt.render);
 
   if (appServer) {
@@ -83,7 +75,7 @@ async function build() {
 }
 
 /**
- * Create the app server and set "upgrading" to false then
+ * 创建应用服务，并将 upgrading 变量设置为 false
  */
 function createAppServer(app, port) {
   appServer = app.listen(port, function(error) {
@@ -99,37 +91,38 @@ function createAppServer(app, port) {
 }
 
 /**
- * Create the temporary server and rebuild the app then
+ * 创建临时服务，用于提示访问者系统正在升级中，并重新构建应用
  */
 function createTmpServer() {
   const app = express();
+  app.get('/bg.jpg', function(req, res) {
+    res.sendFile('./bg.jpg', { root: __dirname });
+  });
   app.get('*', function(req, res) {
     res.sendFile('./upgrading.html', { root: __dirname });
   });
+
   tmpServer = app.listen(port, function(error) {
     if (error) {
       return;
     }
-    consola.ready({
-      message: `tmpServer listening on http://localhost:${port}`,
-      badge: true
-    });
+    console.log(`tmpServer listening on http://localhost:${port}`);
     build();
   });
 }
 
 /**
- * Close the app server and start a temporary server for upgrade.
+ * 关闭应用服务，并启动一个临时的提示服务
  */
 function restart() {
   if (upgrading) {
     return;
   }
   upgrading = true;
-  // Create a child process to pulling the latest code from GitHub
+  // 创建一个子进程，从 GitHub 拉取最新的代码
   const subprocess = spawn('git', ['pull', '-f'], { stdio: [0, 1, 2] });
   subprocess.on('close', () => {
-    // After pulling the latest code, close the app server and start a temporary server
+    // 拉取完成后，关闭应用服务，并创建一个临时服务
     appServer &&
       appServer.listening &&
       appServer.close(error => {
