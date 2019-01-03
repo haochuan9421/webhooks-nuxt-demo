@@ -8,7 +8,6 @@
       <h2 class="subtitle">
         借助 Webhooks 实现 Vue SSR 项目的自动化部署
       </h2>
-      <div>change num to 88</div>
       <div class="links">
         <a
           href="https://nuxtjs.org/"

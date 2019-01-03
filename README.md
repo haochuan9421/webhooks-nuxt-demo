@@ -67,7 +67,7 @@ docker build \
 #### 4. 启动容器
 在后台启动容器，并把容器内的 3000 端口 发布到主机的 80 端口。
 ```bash
-docker run -d -p 80:3000 webhooks-nuxt-demo
+sudo docker run -d -p 80:3000 webhooks-nuxt-demo
 ```
 #### 5. 进入执行中的容器
 
