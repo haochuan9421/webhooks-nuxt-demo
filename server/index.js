@@ -18,8 +18,6 @@ build();
 async function build() {
   const app = express();
 
-  // 解析 application/x-www-form-urlencoded
-  app.use(bodyParser.urlencoded({ extended: false }));
   // 解析 application/json
   app.use(bodyParser.json());
 
