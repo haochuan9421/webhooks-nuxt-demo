@@ -1,6 +1,7 @@
 # Created by .ignore support plugin (hsz.mobi)
 ### Node template
 # Logs
+.DS_Store
 logs
 *.log
 npm-debug.log*
@@ -35,7 +36,7 @@ bower_components
 build/Release
 
 # Dependency directories
-node_modules/
+node_modules*
 jspm_packages/
 
 # TypeScript v1 declaration files
