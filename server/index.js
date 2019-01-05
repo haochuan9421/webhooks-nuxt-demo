@@ -41,7 +41,7 @@ app.post('/webhooks', function(req, res) {
     .digest('hex')}`;
   // 验证签名和 Webhooks 请求中的签名是否一致
   const isValid = signature === req.headers['x-hub-signature'];
-  // 如果验证通过，返回成功状态并重启服务
+  // 如果验证通过，返回成功状态并更新服务
   if (isValid) {
     res.status(200).end('Authorized');
     upgrade();
@@ -51,26 +51,21 @@ app.post('/webhooks', function(req, res) {
   }
 });
 
-/**
-  预留一个接口，必要时用于手动执行一些命令，如通过发起下面的一段 Ajax 请求，进行 npm 包的升级并重新构建项目
-  var xhr = new XMLHttpRequest();
-  xhr.open('post', '/command');
-  xhr.setRequestHeader('access_token', 'b65c19b95906e027c5d8');
-  xhr.setRequestHeader('Content-Type', 'application/json; charset=UTF-8');
-  xhr.send(
-    JSON.stringify({
-      command: 'npm update',
-      reBuild: true
-    })
-  );
- */
+// 预留一个接口，必要时可以通过调取这个接口，来执行命令。
+// 如：通过发起下面这个 AJAX 请求，来进行 npm 包的升级并重新构建项目。
+// var xhr = new XMLHttpRequest();
+// xhr.open('post', '/command');
+// xhr.setRequestHeader('access_token', 'b65c19b95906e027c5d8');
+// xhr.setRequestHeader('Content-Type', 'application/json; charset=UTF-8');
+// xhr.send(
+//   JSON.stringify({
+//     command: 'npm update',
+//     reBuild: true
+//   })
+// );
 app.post('/command', function(req, res) {
-  // 如果必要可以进行更严格的鉴权，这里只是一个示范
+  // 如果必要的话可以进行更严格的鉴权，这里只是一个示范
   if (req.headers['access_token'] === 'b65c19b95906e027c5d8') {
-    // 如果是纯粹的重新构建，没有需要执行的命令，直接结束请求，不需要等待命令的执行结果
-    if (!req.body.command && req.body.reBuild) {
-      res.status(200).end('Authorized and rebuilding!');
-    }
     // 执行命令，并返回命令的执行结果
     execCommand(req.body.command, req.body.reBuild, function(
       error,
@@ -83,6 +78,10 @@ app.post('/command', function(req, res) {
         res.status(200).json({ stdout, stderr });
       }
     });
+    // 如果是纯粹的重新构建，没有需要执行的命令，直接结束请求，不需要等待命令的执行结果
+    if (!req.body.command && req.body.reBuild) {
+      res.status(200).end('Authorized and rebuilding!');
+    }
   } else {
     res.status(403).send('Permission Denied');
   }
@@ -96,17 +95,19 @@ async function build() {
     return;
   }
   upgrading = true;
-  // 导入并设置 Nuxt.js 参数
+  // 导入 Nuxt.js 参数
   let config = require('../nuxt.config.js');
+  // 根据环境变量 NODE_ENV，设置 config.dev 的值
   config.dev = !(process.env.NODE_ENV === 'production');
   // 初始化 Nuxt.js
   const nuxt = new Nuxt(config);
   // 构建应用，得益于环境变量 NODE_ENV，在开发环境和生产环境下这个构建的表现会不同
   const builder = new Builder(nuxt);
+  // 等待构建
   await builder.build();
-  // 更新 render 中间件
+  // 构建完成后，更新 render 中间件
   render = nuxt.render;
-  // 构建完毕，将 flag 置反
+  // 将 flag 置反
   upgrading = false;
   // 如果是初次构建，则创建 http server
   server || createServer();
@@ -116,11 +117,8 @@ async function build() {
  * 创建应用的 http server
  */
 function createServer() {
-  /**
-   * 添加 nuxt 中间件到 express：
-   * 重新构建之后，中间件会发生变化
-   * 这种处理方式的好处就在于 express 使用的总是最新的 nuxt.render
-   */
+  // 向 express 应用添加 nuxt 中间件，重新构建之后，中间件会发生变化
+  // 这种处理方式的好处就在于 express 使用的总是最新的 nuxt.render
   app.use(function() {
     render.apply(this, arguments);
   });
@@ -146,7 +144,7 @@ function upgrade() {
 /**
  * 创建子进程，执行命令
  * @param {String} command 需要执行的命令
- * @param {Boolean} reBuild 执行完毕后，是否重新构建应用
+ * @param {Boolean} reBuild 是否重新构建应用
  * @param {Function} callback 执行命令后的回调
  */
 async function execCommand(command, reBuild, callback) {
