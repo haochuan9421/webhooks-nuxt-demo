@@ -79,15 +79,15 @@ function upgrade() {
 ```
 `execCommand` 函数如下，这里我们使用了 `Node` 的 [child_process](https://nodejs.org/api/child_process.html#child_process_child_process_exec_command_options_callback) 模块，用以创建子进程，来执行拉取代码， 更新 `npm` 依赖等命令：
 ```js
-const { exec } = require('child_process');
+const { execSync } = require('child_process');
 /**
  * 创建子进程，执行命令
  * @param {String} command 需要执行的命令
  * @param {Boolean} reBuild 是否重新构建应用
  * @param {Function} callback 执行命令后的回调
  */
-async function execCommand(command, reBuild, callback) {
-  command && (await exec(command, callback));
+function execCommand(command, reBuild, callback) {
+  command && execSync(command, { stdio: [0, 1, 2] }, callback);
   // 根据配置文件，重新构建项目
   reBuild && build();
 }

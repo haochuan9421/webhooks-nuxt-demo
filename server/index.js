@@ -2,7 +2,7 @@ const express = require('express');
 const consola = require('consola');
 const bodyParser = require('body-parser'); // 用于添加请求体到 request 参数中, req.body
 const crypto = require('crypto'); // 用于计算签名
-const { exec } = require('child_process'); // 用于执行子进程
+const { execSync } = require('child_process'); // 用于执行子进程
 const { Nuxt, Builder } = require('nuxt');
 
 const app = express();
@@ -147,8 +147,8 @@ function upgrade() {
  * @param {Boolean} reBuild 是否重新构建应用
  * @param {Function} callback 执行命令后的回调
  */
-async function execCommand(command, reBuild, callback) {
-  command && (await exec(command, callback));
+function execCommand(command, reBuild, callback) {
+  command && execSync(command, { stdio: [0, 1, 2] }, callback);
   // 根据配置文件，重新构建项目
   reBuild && build();
 }
